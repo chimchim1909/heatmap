@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Your Gym Years - Notion Heatmap Widget</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            darkBg: '#08080A',
+            cardBg: '#0F0F13',
+            tileUnlit: '#17171E',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'SF Pro Text', 'Inter', 'Segoe UI', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --theme-color: #FF3B30;
+      --theme-glow: rgba(255, 59, 48, 0.65);
+      --total-weeks: 53;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden !important;
+      background-color: #08080A;
+      color: #F2F2F7;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+    }
+
+    /* Active lit tile styling with glow */
+    .tile-lit {
+      background-color: var(--theme-color) !important;
+      box-shadow: 0 0 6px var(--theme-glow) !important;
+      border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    }
+
+    /* Unlit tile styling */
+    .tile-unlit {
+      background-color: #17171E;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    
+    .tile-unlit:hover {
+      background-color: #2A2A38;
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: scale(1.25);
+      z-index: 30;
+    }
+
+    .text-theme-color {
+      color: var(--theme-color);
+    }
+
+    /* Glassmorphism main card container */
+    .glass-card {
+      background: rgba(13, 13, 17, 0.94);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .tile-transition {
+      transition: background-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+    }
+    
+    .tile-transition:active {
+      transform: scale(0.8) !important;
+    }
+
+    /* FLUID ZERO-SCROLLBAR GRID ENGINE */
+    .heatmap-grid-container {
+      display: grid;
+      width: 100%;
+      grid-template-rows: repeat(7, minmax(0, 1fr));
+      grid-auto-flow: column;
+      grid-template-columns: repeat(var(--total-weeks, 53), minmax(0, 1fr));
+      gap: clamp(1px, 0.35vw, 3px);
+    }
+
+    .day-tile {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: clamp(1px, 0.25vw, 2.5px);
+    }
+
+    .months-header-container {
+      display: grid;
+      width: 100%;
+      grid-template-columns: repeat(var(--total-weeks, 53), minmax(0, 1fr));
+      gap: clamp(1px, 0.35vw, 3px);
+    }
+
+    #tooltip {
+      pointer-events: none;
+      transition: opacity 0.12s ease, transform 0.08s ease;
+    }
+  </style>
+</head>
+<body class="w-full h-full flex flex-col items-center justify-center p-1.5 sm:p-4">
+
+  <main class="w-full max-w-2xl mx-auto flex flex-col items-center justify-center">
+    
+    <!-- Top Action Toolbar -->
+    <div id="toolbar" class="w-full flex items-center justify-between mb-2 px-1 text-xs text-neutral-400">
+      <div class="flex items-center gap-2">
+        <button id="todayBtn" onclick="toggleToday()" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white transition text-xs font-medium border border-neutral-800 shadow-sm">
+          <i class="fa-solid fa-calendar-check text-theme-color"></i>
+          <span id="todayBtnText">Mark Today</span>
+        </button>
+
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-900/90 border border-neutral-800 text-neutral-300 text-xs">
+          <i class="fa-solid fa-fire text-amber-500"></i>
+          <span><strong id="currentStreakCount" class="text-white">0</strong> day streak</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <button onclick="openModal('settingsModal')" class="p-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition border border-neutral-800" title="Settings & Theme">
+          <i class="fa-solid fa-sliders text-xs"></i>
+        </button>
+        <button onclick="toggleEmbedMode()" id="embedToggleBtn" class="p-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition border border-neutral-800" title="Toggle Clean Embed View">
+          <i class="fa-solid fa-expand text-xs"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="widgetCard" class="w-full glass-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-2xl relative transition-all duration-300 border border-neutral-800/80">
+      
+      <!-- Header -->
+      <header class="relative flex items-center justify-between mb-2">
+        <button onclick="resetYearView()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-neutral-800/80 text-neutral-300 transition" title="Reset to Current Year">
+          <i class="fa-solid fa-chevron-left text-xs"></i>
+        </button>
+        
+        <h1 class="text-sm sm:text-base font-bold tracking-tight text-white text-center">
+          Your gym years
+        </h1>
+
+        <div class="w-7"></div>
+      </header>
+
+      <!-- Subtitle -->
+      <p class="text-[11px] sm:text-xs text-neutral-400 text-center -mt-1 mb-3 font-normal tracking-wide">
+        One square per day, lit on the days you trained.
+      </p>
+
+      <div class="flex items-baseline justify-between mb-1.5 px-0.5">
+        <!-- Year Switcher Dropdown -->
+        <div class="relative group">
+          <button id="yearSelectBtn" onclick="toggleYearDropdown()" class="flex items-center gap-1.5 text-2xl sm:text-3xl font-extrabold tracking-tight text-white hover:opacity-85 transition">
+            <span id="currentYearDisplay">2026</span>
+            <i class="fa-solid fa-chevron-down text-[10px] text-neutral-500 group-hover:text-white transition"></i>
+          </button>
+          
+          <div id="yearDropdown" class="hidden absolute left-0 top-full mt-1 w-28 glass-card rounded-xl shadow-2xl z-30 py-1.5 border border-neutral-700/60">
+            <button onclick="selectYear(2026)" class="w-full text-left px-3.5 py-1 text-xs hover:bg-neutral-800/80 transition text-neutral-200 font-medium">2026</button>
+            <button onclick="selectYear(2027)" class="w-full text-left px-3.5 py-1 text-xs hover:bg-neutral-800/80 transition text-neutral-200 font-medium">2027</button>
+            <button onclick="selectYear(2028)" class="w-full text-left px-3.5 py-1 text-xs hover:bg-neutral-800/80 transition text-neutral-200 font-medium">2028</button>
+          </div>
+        </div>
+
+        <!-- Total Days Counter -->
+        <div class="text-xs font-medium text-neutral-400">
+          <span id="totalDaysCount" class="text-base sm:text-lg text-white font-bold">0</span> days
+        </div>
+      </div>
+
+      <div class="w-full my-1">
+        <!-- Month Header Row -->
+        <div id="monthsHeader" class="months-header-container text-[9px] sm:text-[10px] font-semibold text-neutral-400 mb-1 h-3.5 relative">
+          <!-- Dynamically populated via JS -->
+        </div>
+
+        <!-- 7-Row Contribution Heatmap Grid -->
+        <div id="heatmapGrid" class="heatmap-grid-container">
+          <!-- Dynamically generated 365/366 tile elements -->
+        </div>
+      </div>
+
+      <!-- Footer Message -->
+      <footer class="mt-3 text-center">
+        <p id="bottomText" class="text-xs sm:text-sm font-bold tracking-wide text-theme-color transition-colors duration-300">
+          See you there in <span id="nextYearDisplay">2027</span>
+        </p>
+      </footer>
+
+    </div>
+  </main>
+
+  <div id="tooltip" class="fixed opacity-0 z-50 px-2.5 py-1 bg-neutral-900/95 border border-neutral-700/80 text-white text-[11px] rounded-lg shadow-2xl backdrop-blur-md transform -translate-x-1/2 -translate-y-full pointer-events-none mb-1">
+    <div id="tooltipDate" class="font-semibold text-neutral-200">Oct 4, 2026</div>
+    <div id="tooltipStatus" class="text-[10px] text-neutral-400 flex items-center gap-1 mt-0.5">
+      <span class="w-1.5 h-1.5 rounded-full bg-neutral-600 inline-block"></span> Rest Day
+    </div>
+  </div>
+
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3">
+    <div class="glass-card w-full max-w-sm rounded-2xl p-4 shadow-2xl border border-neutral-800 text-neutral-200">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-theme-color"></i> Widget Settings
+        </h3>
+        <button onclick="closeModal('settingsModal')" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-xs"></i>
+        </button>
+      </div>
+
+      <!-- Color Theme Options -->
+      <div class="mb-4">
+        <label class="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Lit Square Theme</label>
+        <div class="grid grid-cols-6 gap-1.5">
+          <button onclick="setTheme('red')" class="h-8 rounded-lg bg-[#FF3B30] border-2 border-transparent focus:border-white transition shadow-lg shadow-red-500/20" title="Crimson Red"></button>
+          <button onclick="setTheme('green')" class="h-8 rounded-lg bg-[#30D158] border-2 border-transparent focus:border-white transition shadow-lg shadow-green-500/20" title="Emerald Green"></button>
+          <button onclick="setTheme('blue')" class="h-8 rounded-lg bg-[#0A84FF] border-2 border-transparent focus:border-white transition shadow-lg shadow-blue-500/20" title="Electric Blue"></button>
+          <button onclick="setTheme('purple')" class="h-8 rounded-lg bg-[#BF5AF2] border-2 border-transparent focus:border-white transition shadow-lg shadow-purple-500/20" title="Neon Purple"></button>
+          <button onclick="setTheme('gold')" class="h-8 rounded-lg bg-[#FFD60A] border-2 border-transparent focus:border-white transition shadow-lg shadow-amber-500/20" title="Gold"></button>
+          <button onclick="setTheme('orange')" class="h-8 rounded-lg bg-[#FF9500] border-2 border-transparent focus:border-white transition shadow-lg shadow-orange-500/20" title="Sunset Orange"></button>
+        </div>
+      </div>
+
+      <!-- Custom Bottom Text -->
+      <div class="mb-4">
+        <label class="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">Custom Bottom Text</label>
+        <input type="text" id="customTextInput" oninput="updateCustomText(this.value)" placeholder="See you there in 2027" class="w-full bg-neutral-900 border border-neutral-700/80 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-neutral-500 transition" />
+      </div>
+
+      <!-- Data Export & Import -->
+      <div class="mb-3 pt-3 border-t border-neutral-800/80">
+        <label class="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">Data Management</label>
+        <div class="grid grid-cols-2 gap-1.5 mb-2">
+          <button onclick="exportData()" class="py-1.5 px-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-[11px] font-medium text-white transition flex items-center justify-center gap-1.5 border border-neutral-800">
+            <i class="fa-solid fa-download"></i> Export Data
+          </button>
+          <button onclick="triggerImport()" class="py-1.5 px-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-[11px] font-medium text-white transition flex items-center justify-center gap-1.5 border border-neutral-800">
+            <i class="fa-solid fa-upload"></i> Import Data
+          </button>
+          <input type="file" id="importFileInput" onchange="importData(event)" class="hidden" accept=".json" />
+        </div>
+        <button onclick="clearYearData()" class="w-full py-1.5 px-2.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-[11px] font-medium text-red-400 transition flex items-center justify-center gap-1.5 border border-red-900/40">
+          <i class="fa-solid fa-trash-can"></i> Clear <span id="clearYearLabel">2026</span> Logs
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const THEMES = {
+      red: { color: '#FF3B30', glow: 'rgba(255, 59, 48, 0.65)' },
+      green: { color: '#30D158', glow: 'rgba(48, 209, 88, 0.65)' },
+      blue: { color: '#0A84FF', glow: 'rgba(10, 132, 255, 0.65)' },
+      purple: { color: '#BF5AF2', glow: 'rgba(191, 90, 242, 0.65)' },
+      gold: { color: '#FFD60A', glow: 'rgba(255, 214, 10, 0.65)' },
+      orange: { color: '#FF9500', glow: 'rgba(255, 149, 0, 0.65)' }
+    };
+
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const ALLOWED_YEARS = [2026, 2027, 2028];
+
+    let currentYear = 2026;
+    let activeTheme = 'red';
+    let trainedDates = {};
+    let customMessage = '';
+
+    function init() {
+      try {
+        const savedData = localStorage.getItem('gym_years_data');
+        if (savedData) trainedDates = JSON.parse(savedData);
+
+        const savedTheme = localStorage.getItem('gym_years_theme');
+        if (savedTheme && THEMES[savedTheme]) activeTheme = savedTheme;
+
+        const savedMsg = localStorage.getItem('gym_years_msg');
+        if (savedMsg) customMessage = savedMsg;
+      } catch (e) {
+        console.warn('LocalStorage unavailable:', e);
+      }
+
+      setTheme(activeTheme, false);
+
+      const actualYear = new Date().getFullYear();
+      if (ALLOWED_YEARS.includes(actualYear)) {
+        currentYear = actualYear;
+      } else {
+        currentYear = 2026;
+      }
+
+      renderYear(currentYear);
+      updateTodayBtnState();
+    }
+
+    function renderYear(year) {
+      if (!ALLOWED_YEARS.includes(year)) year = 2026;
+      currentYear = year;
+
+      document.getElementById('currentYearDisplay').innerText = year;
+      document.getElementById('nextYearDisplay').innerText = year + 1;
+      document.getElementById('clearYearLabel').innerText = year;
+
+      const gridContainer = document.getElementById('heatmapGrid');
+      const monthsHeader = document.getElementById('monthsHeader');
+      gridContainer.innerHTML = '';
+      monthsHeader.innerHTML = '';
+
+      const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+      const daysInYear = isLeapYear ? 366 : 365;
+
+      const jan1 = new Date(year, 0, 1);
+      const startDayOfWeek = jan1.getDay(); // 0 = Sun, 1 = Mon...
+      const totalWeeks = Math.ceil((daysInYear + startDayOfWeek) / 7);
+
+      // Set CSS CSS Grid columns dynamically so everything scales inside 100% width
+      gridContainer.style.setProperty('--total-weeks', totalWeeks);
+      monthsHeader.style.setProperty('--total-weeks', totalWeeks);
+
+      let totalDaysTrained = 0;
+      const monthFirstWeekMap = Array(12).fill(-1);
+
+      // Empty offset squares
+      for (let i = 0; i < startDayOfWeek; i++) {
+        const emptySquare = document.createElement('div');
+        emptySquare.className = 'day-tile opacity-0 pointer-events-none';
+        gridContainer.appendChild(emptySquare);
+      }
+
+      // Generate EVERY single day of the year
+      for (let dayOffset = 0; dayOffset < daysInYear; dayOffset++) {
+        const date = new Date(year, 0, 1 + dayOffset);
+        const month = date.getMonth();
+        const dateNum = date.getDate();
+
+        const yearStr = date.getFullYear();
+        const monthStr = String(month + 1).padStart(2, '0');
+        const dayStr = String(dateNum).padStart(2, '0');
+        const dateKey = `${yearStr}-${monthStr}-${dayStr}`;
+
+        const weekIndex = Math.floor((dayOffset + startDayOfWeek) / 7);
+        if (dateNum === 1 && monthFirstWeekMap[month] === -1) {
+          monthFirstWeekMap[month] = weekIndex;
+        }
+
+        const isTrained = !!trainedDates[dateKey];
+        if (isTrained) totalDaysTrained++;
+
+        // Tile Element
+        const tile = document.createElement('div');
+        tile.dataset.date = dateKey;
+        tile.dataset.formattedDate = formatDateLabel(date);
+        tile.dataset.trained = isTrained ? 'true' : 'false';
+
+        tile.className = `day-tile cursor-pointer tile-transition ${
+          isTrained ? 'tile-lit' : 'tile-unlit'
+        }`;
+
+        tile.onclick = () => toggleDay(dateKey, tile);
+        tile.onmouseenter = (e) => showTooltip(e, tile);
+        tile.onmousemove = (e) => positionTooltip(e);
+        tile.onmouseleave = hideTooltip;
+
+        gridContainer.appendChild(tile);
+      }
+
+      // Render Month Headers precisely above week columns
+      monthFirstWeekMap.forEach((weekCol, mIdx) => {
+        if (weekCol !== -1) {
+          const monthLabel = document.createElement('div');
+          monthLabel.innerText = MONTH_NAMES[mIdx];
+          monthLabel.style.gridColumnStart = weekCol + 1;
+          monthLabel.className = 'col-span-3 text-[8px] sm:text-[10px] font-semibold text-neutral-400 whitespace-nowrap overflow-visible pointer-events-none';
+          monthsHeader.appendChild(monthLabel);
+        }
+      });
+
+      document.getElementById('totalDaysCount').innerText = totalDaysTrained;
+      calculateStreak();
+
+      // Custom message
+      const bText = document.getElementById('bottomText');
+      if (customMessage) {
+        bText.innerText = customMessage;
+      } else {
+        bText.innerHTML = `See you there in <span id="nextYearDisplay">${year + 1}</span>`;
+      }
+    }
+
+    function toggleDay(dateKey, tileElement) {
+      const currentState = trainedDates[dateKey];
+      if (currentState) {
+        delete trainedDates[dateKey];
+        tileElement.classList.remove('tile-lit');
+        tileElement.classList.add('tile-unlit');
+        tileElement.dataset.trained = 'false';
+      } else {
+        trainedDates[dateKey] = true;
+        tileElement.classList.remove('tile-unlit');
+        tileElement.classList.add('tile-lit');
+        tileElement.dataset.trained = 'true';
+      }
+
+      try {
+        localStorage.setItem('gym_years_data', JSON.stringify(trainedDates));
+      } catch (e) {}
+
+      const year = parseInt(dateKey.split('-')[0]);
+      if (year === currentYear) {
+        const currentCount = parseInt(document.getElementById('totalDaysCount').innerText);
+        document.getElementById('totalDaysCount').innerText = currentState ? currentCount - 1 : currentCount + 1;
+      }
+
+      calculateStreak();
+      updateTodayBtnState();
+      updateTooltipStatus(tileElement.dataset.trained === 'true');
+    }
+
+    function calculateStreak() {
+      let streak = 0;
+      let checkDate = new Date();
+      checkDate.setHours(0,0,0,0);
+
+      const getFormatted = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      let todayKey = getFormatted(checkDate);
+      if (!trainedDates[todayKey]) {
+        checkDate.setDate(checkDate.getDate() - 1);
+        todayKey = getFormatted(checkDate);
+      }
+
+      while (trainedDates[todayKey]) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+        todayKey = getFormatted(checkDate);
+      }
+
+      document.getElementById('currentStreakCount').innerText = streak;
+    }
+
+    function toggleToday() {
+      const now = new Date();
+      const yearStr = now.getFullYear();
+      if (!ALLOWED_YEARS.includes(yearStr)) return;
+
+      const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(now.getDate()).padStart(2, '0');
+      const todayKey = `${yearStr}-${monthStr}-${dayStr}`;
+
+      if (yearStr !== currentYear) {
+        selectYear(yearStr);
+      }
+
+      const targetTile = document.querySelector(`[data-date="${todayKey}"]`);
+      if (targetTile) {
+        toggleDay(todayKey, targetTile);
+      }
+    }
+
+    function updateTodayBtnState() {
+      const now = new Date();
+      const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const isMarked = !!trainedDates[todayKey];
+      const todayBtnText = document.getElementById('todayBtnText');
+      if (todayBtnText) {
+        todayBtnText.innerText = isMarked ? 'Today Logged' : 'Mark Today';
+      }
+    }
+
+    const tooltip = document.getElementById('tooltip');
+    const tooltipDate = document.getElementById('tooltipDate');
+    const tooltipStatus = document.getElementById('tooltipStatus');
+
+    function showTooltip(e, tile) {
+      tooltipDate.innerText = tile.dataset.formattedDate;
+      updateTooltipStatus(tile.dataset.trained === 'true');
+      tooltip.classList.remove('opacity-0');
+      positionTooltip(e);
+    }
+
+    function positionTooltip(e) {
+      tooltip.style.left = `${e.clientX}px`;
+      tooltip.style.top = `${e.clientY - 10}px`;
+    }
+
+    function hideTooltip() {
+      tooltip.classList.add('opacity-0');
+    }
+
+    function updateTooltipStatus(isTrained) {
+      if (isTrained) {
+        tooltipStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-theme-color inline-block"></span> Trained 🔥`;
+      } else {
+        tooltipStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-neutral-600 inline-block"></span> Rest Day`;
+      }
+    }
+
+    function formatDateLabel(date) {
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+
+    function setTheme(themeName, save = true) {
+      if (!THEMES[themeName]) return;
+      activeTheme = themeName;
+      const themeData = THEMES[themeName];
+
+      document.documentElement.style.setProperty('--theme-color', themeData.color);
+      document.documentElement.style.setProperty('--theme-glow', themeData.glow);
+
+      if (save) {
+        try {
+          localStorage.setItem('gym_years_theme', themeName);
+        } catch (e) {}
+      }
+    }
+
+    function updateCustomText(val) {
+      customMessage = val;
+      const bText = document.getElementById('bottomText');
+      if (val.trim()) {
+        bText.innerText = val;
+      } else {
+        bText.innerHTML = `See you there in <span id="nextYearDisplay">${currentYear + 1}</span>`;
+      }
+      try {
+        localStorage.setItem('gym_years_msg', val);
+      } catch (e) {}
+    }
+
+    function toggleYearDropdown() {
+      document.getElementById('yearDropdown').classList.toggle('hidden');
+    }
+
+    function selectYear(yr) {
+      document.getElementById('yearDropdown').classList.add('hidden');
+      renderYear(yr);
+    }
+
+    function resetYearView() {
+      selectYear(2026);
+    }
+
+    function openModal(id) {
+      document.getElementById(id).classList.remove('hidden');
+      if (id === 'settingsModal') {
+        document.getElementById('customTextInput').value = customMessage;
+      }
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function toggleEmbedMode() {
+      document.getElementById('toolbar').classList.toggle('hidden');
+    }
+
+    function clearYearData() {
+      Object.keys(trainedDates).forEach(key => {
+        if (key.startsWith(`${currentYear}-`)) {
+          delete trainedDates[key];
+        }
+      });
+      localStorage.setItem('gym_years_data', JSON.stringify(trainedDates));
+      renderYear(currentYear);
+      updateTodayBtnState();
+      closeModal('settingsModal');
+    }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(trainedDates, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `gym_years_backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function triggerImport() {
+      document.getElementById('importFileInput').click();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (typeof imported === 'object') {
+            trainedDates = { ...trainedDates, ...imported };
+            localStorage.setItem('gym_years_data', JSON.stringify(trainedDates));
+            renderYear(currentYear);
+            updateTodayBtnState();
+            closeModal('settingsModal');
+          }
+        } catch (err) {}
+      };
+      reader.readAsText(file);
+    }
+
+    window.onclick = function(e) {
+      if (!e.target.closest('#yearSelectBtn') && !e.target.closest('#yearDropdown')) {
+        document.getElementById('yearDropdown').classList.add('hidden');
+      }
+    };
+
+    window.onload = init;
+  </script>
+</body>
+</html>
