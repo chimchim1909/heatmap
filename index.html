@@ -27,6 +27,7 @@
             flex-direction: column;
             gap: 14px;
             box-sizing: border-box;
+            position: relative;
         }
 
         .top-bar {
@@ -53,6 +54,7 @@
             align-items: center;
             gap: 6px;
             font-weight: 500;
+            transition: opacity 0.2s;
         }
 
         .mark-today-btn:hover {
@@ -113,16 +115,93 @@
         .year-header {
             display: flex;
             justify-content: space-between;
-            align-items: baseline;
+            align-items: center;
         }
 
-        .year-large {
-            font-size: 32px;
+        /* TÙY CHỈNH BỘ CHỌN NĂM (YEAR PICKER SANG TRỌNG) */
+        .year-picker {
+            position: relative;
+            display: inline-block;
+        }
+
+        .year-picker-btn {
+            background: #1a1a1a;
+            color: #ffffff;
+            font-size: 26px;
             font-weight: 700;
-            color: white;
+            border: 1px solid #333333;
+            border-radius: 10px;
+            padding: 4px 12px;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .year-picker-btn:hover {
+            border-color: #ff3b30;
+            background: #222222;
+        }
+
+        .chevron-icon {
+            transition: transform 0.2s ease;
+            fill: #888888;
+        }
+
+        .year-picker-btn:hover .chevron-icon {
+            fill: #ffffff;
+        }
+
+        .year-picker.open .chevron-icon {
+            transform: rotate(180deg);
+            fill: #ff3b30;
+        }
+
+        .year-dropdown {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            background: #1a1a1a;
+            border: 1px solid #333333;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 100;
+            min-width: 120px;
+        }
+
+        .year-picker.open .year-dropdown {
+            display: flex;
+            animation: fadeIn 0.15s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .year-option {
+            padding: 10px 16px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #aaaaaa;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .year-option:hover {
+            background: #2a2a2a;
+            color: #ffffff;
+        }
+
+        .year-option.active {
+            color: #ff3b30;
+            font-weight: 700;
+            background: rgba(255, 59, 48, 0.12);
         }
 
         .total-days-trained {
@@ -147,7 +226,7 @@
             padding: 0 4px;
         }
 
-        /* LƯỚI 365 NGÀY TỰ CO GIÃN THEO KHUNG NOTION */
+        /* LƯỚI NGÀY TỰ CO GIÃN THEO KHUNG NOTION */
         .heatmap-grid {
             display: grid;
             grid-template-columns: repeat(53, 1fr);
@@ -182,6 +261,30 @@
             font-size: 16px;
             font-weight: 600;
         }
+
+        /* TOOLTIP HIỂN THỊ NGÀY KHI RE CHUỘT 2 GIÂY */
+        .tooltip {
+            position: fixed;
+            background: rgba(35, 35, 35, 0.95);
+            color: #ffffff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            transform: translate(-50%, -100%);
+            white-space: nowrap;
+            z-index: 1000;
+            border: 1px solid #444444;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+            margin-top: -6px;
+        }
+
+        .tooltip.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -202,31 +305,100 @@
             <div class="sub-title">One square per day, lit on the days you trained.</div>
         </div>
         <div class="year-header">
-            <div class="year-large">2026 <span style="font-size: 16px;">&#x2304;</span></div>
+            <!-- BỘ CHỌN NĂM CỬA SỔ XỔ SANG TRỌNG -->
+            <div class="year-picker" id="yearPicker">
+                <button class="year-picker-btn" onclick="toggleYearDropdown(event)">
+                    <span id="currentYearText">2026</span>
+                    <svg class="chevron-icon" viewBox="0 0 24 24" width="18" height="18">
+                        <path d="M7 10l5 5 5-5z"/>
+                    </svg>
+                </button>
+                <div class="year-dropdown" id="yearDropdown">
+                    <div class="year-option active" data-year="2026" onclick="selectYear(2026)">2026</div>
+                    <div class="year-option" data-year="2027" onclick="selectYear(2027)">2027</div>
+                    <div class="year-option" data-year="2028" onclick="selectYear(2028)">2028</div>
+                </div>
+            </div>
             <div class="total-days-trained"><span class="days-number">0</span> days</div>
         </div>
         <div class="months-header">
             <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
         </div>
         <div class="heatmap-grid" id="heatmapGrid"></div>
-        <div class="footer-text">See you there in 2027</div>
+        <div class="footer-text" id="footerText">See you there in 2027</div>
     </div>
 
-    <script>
-        const trainedDatesKey = 'gym_years_trained_dates_2026';
-        let trainedDates = new Set();
+    <div id="tooltip" class="tooltip"></div>
 
-        // Tải dữ liệu từ LocalStorage
-        const storedDates = localStorage.getItem(trainedDatesKey);
-        if (storedDates) {
-            trainedDates = new Set(JSON.parse(storedDates));
+    <script>
+        let currentYear = 2026;
+        let trainedDates = new Set();
+        let hoverTimer = null;
+        const tooltip = document.getElementById('tooltip');
+
+        // Bật/Tắt Dropdown chọn năm
+        function toggleYearDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('yearPicker').classList.toggle('open');
         }
 
-        // Tạo 365 ô ngày tập
+        // Tự động đóng dropdown khi click ra ngoài
+        document.addEventListener('click', () => {
+            document.getElementById('yearPicker').classList.remove('open');
+        });
+
+        // Chọn năm
+        function selectYear(year) {
+            currentYear = parseInt(year);
+            document.getElementById('currentYearText').textContent = currentYear;
+            
+            // Đổi active state trên menu
+            document.querySelectorAll('.year-option').forEach(opt => {
+                if (parseInt(opt.dataset.year) === currentYear) {
+                    opt.classList.add('active');
+                } else {
+                    opt.classList.remove('active');
+                }
+            });
+
+            loadYearData(currentYear);
+        }
+
+        // Kiểm tra năm nhuận
+        function isLeapYear(year) {
+            return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+        }
+
+        // Tải dữ liệu của năm được chọn
+        function loadYearData(year) {
+            const trainedDatesKey = `gym_years_trained_dates_${year}`;
+            const storedDates = localStorage.getItem(trainedDatesKey);
+            
+            if (storedDates) {
+                trainedDates = new Set(JSON.parse(storedDates));
+            } else {
+                trainedDates = new Set();
+            }
+
+            document.getElementById('footerText').textContent = `See you there in ${year + 1}`;
+            generateHeatmap();
+        }
+
+        // Chuyển số ngày (1-365/366) thành định dạng DD/MM/YYYY
+        function getDateStringFromDayNumber(dayNum) {
+            const date = new Date(currentYear, 0, dayNum);
+            const d = String(date.getDate()).padStart(2, '0');
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            return `${d}/${m}/${currentYear}`;
+        }
+
+        // Tạo lưới ô vuông theo số ngày của năm
         function generateHeatmap() {
             const grid = document.getElementById('heatmapGrid');
             grid.innerHTML = '';
-            const totalDays = 365;
+            
+            const totalDays = isLeapYear(currentYear) ? 366 : 365;
+            grid.style.gridTemplateColumns = `repeat(${totalDays > 365 ? 54 : 53}, 1fr)`;
 
             for (let day = 1; day <= totalDays; day++) {
                 const dayCell = document.createElement('div');
@@ -234,6 +406,9 @@
                 dayCell.dataset.day = day;
                 dayCell.onclick = toggleTraining;
                 
+                dayCell.onmouseenter = handleMouseEnter;
+                dayCell.onmouseleave = handleMouseLeave;
+
                 if (trainedDates.has(day.toString())) {
                     dayCell.classList.add('trained');
                 }
@@ -244,7 +419,35 @@
             updateTrainedStats();
         }
 
-        // Đánh dấu / hủy ngày tập
+        // Hiện ngày sau 2 giây rê chuột
+        function handleMouseEnter(e) {
+            const dayNum = parseInt(this.dataset.day);
+            const dateStr = getDateStringFromDayNumber(dayNum);
+            const rect = this.getBoundingClientRect();
+
+            clearTimeout(hoverTimer);
+
+            hoverTimer = setTimeout(() => {
+                tooltip.textContent = dateStr;
+                tooltip.style.left = `${rect.left + (rect.width / 2)}px`;
+                tooltip.style.top = `${rect.top}px`;
+                tooltip.classList.add('show');
+            }, 2000);
+        }
+
+        // Ẩn ngày khi rê chuột ra ngoài
+        function handleMouseLeave() {
+            clearTimeout(hoverTimer);
+            tooltip.classList.remove('show');
+        }
+
+        // Lưu dữ liệu vào LocalStorage
+        function saveYearData() {
+            const trainedDatesKey = `gym_years_trained_dates_${currentYear}`;
+            localStorage.setItem(trainedDatesKey, JSON.stringify(Array.from(trainedDates)));
+        }
+
+        // Bật/Tắt trạng thái tập
         function toggleTraining() {
             const day = this.dataset.day;
 
@@ -256,34 +459,39 @@
                 trainedDates.add(day);
             }
 
-            localStorage.setItem(trainedDatesKey, JSON.stringify(Array.from(trainedDates)));
+            saveYearData();
             updateTrainedStats();
         }
 
         // Đánh dấu ngày hôm nay
         function markToday() {
             const now = new Date();
-            const start = new Date(now.getFullYear(), 0, 0);
-            const diff = now - start;
-            const oneDay = 1000 * 60 * 60 * 24;
-            const dayOfYear = Math.floor(diff / oneDay);
+            if (now.getFullYear() === currentYear) {
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
 
-            const todayCell = document.querySelector(`.heatmap-day[data-day="${dayOfYear}"]`);
-            if (todayCell && !trainedDates.has(dayOfYear.toString())) {
-                todayCell.classList.add('trained');
-                trainedDates.add(dayOfYear.toString());
-                localStorage.setItem(trainedDatesKey, JSON.stringify(Array.from(trainedDates)));
-                updateTrainedStats();
+                const todayCell = document.querySelector(`.heatmap-day[data-day="${dayOfYear}"]`);
+                if (todayCell && !trainedDates.has(dayOfYear.toString())) {
+                    todayCell.classList.add('trained');
+                    trainedDates.add(dayOfYear.toString());
+                    saveYearData();
+                    updateTrainedStats();
+                }
+            } else {
+                alert(`Bạn đang xem năm ${currentYear}. Vui lòng chuyển nút chọn năm về năm ${now.getFullYear()} để nhấn Mark Today!`);
             }
         }
 
-        // Cập nhật số liệu
+        // Cập nhật số ngày tập & chuỗi
         function updateTrainedStats() {
             document.querySelector('.days-number').textContent = trainedDates.size;
             document.querySelector('.streak-count').textContent = trainedDates.size > 0 ? trainedDates.size : 0;
         }
 
-        generateHeatmap();
+        // Khởi chạy ban đầu
+        loadYearData(2026);
     </script>
 </body>
 </html>
