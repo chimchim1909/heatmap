@@ -8,7 +8,7 @@
         body {
             margin: 0;
             padding: 0;
-            background: transparent;
+            background: transparent; /* Nền bên ngoài trong suốt cho Notion */
             color: #eeeeee;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex;
@@ -20,7 +20,7 @@
         .widget-container {
             width: 100%;
             max-width: 900px;
-            background: #111111;
+            background: #111111; /* Nền tối bên trong khung widget */
             border-radius: 12px;
             padding: 24px;
             border: 1px solid #2a2a2a;
@@ -189,123 +189,57 @@
         }
     </style>
 </head>
-
 <body>
-
     <div class="widget-container">
-
         <div class="top-bar">
-
             <div class="left-top-buttons">
-
-                <!-- Icon đã đổi từ 👽 thành 👺 -->
-                <button class="mark-today-btn" onclick="markToday()">
-                    <span class="icon">👺</span> Mark Today
-                </button>
-
-                <div class="streak-info">
-                    <span class="icon">&#x1F525;</span>
-                    <span class="streak-count">0</span> day streak
-                </div>
-
+                <!-- Đã cập nhật icon ở đây -->
+                <button class="mark-today-btn" onclick="markToday()"><span class="icon">👽</span> Mark Today</button>
+                <div class="streak-info"><span class="icon">&#x1F525;</span> <span class="streak-count">0</span> day streak</div>
             </div>
-
             <div class="right-top-buttons">
-
-                <button class="setting-btn">
-                    <span class="icon">&#x2699;</span>
-                </button>
-
-                <button class="full-screen-btn">
-                    <span class="icon">&#x26F6;</span>
-                </button>
-
+                <button class="setting-btn"><span class="icon">&#x2699;</span></button>
+                <button class="full-screen-btn"><span class="icon">&#x26F6;</span></button>
             </div>
-
         </div>
-
         <div class="main-header">
-
             <span class="back-icon">&#x2039;</span>
-
-            <div class="main-title">
-                Your gym years
-            </div>
-
-            <div class="sub-title">
-                One square per day, lit on the days you trained.
-            </div>
-
+            <div class="main-title">Your gym years</div>
+            <div class="sub-title">One square per day, lit on the days you trained.</div>
         </div>
-
         <div class="year-header">
-
-            <div class="year-large">
-                2026
-                <span style="font-size: 18px;">&#x2304;</span>
-            </div>
-
-            <div class="total-days-trained">
-                <span class="days-number">0</span> days
-            </div>
-
+            <div class="year-large">2026 <span style="font-size: 18px;">&#x2304;</span></div>
+            <div class="total-days-trained"><span class="days-number">0</span> days</div>
         </div>
-
         <div class="months-header">
-            <span>Jan</span>
-            <span>Feb</span>
-            <span>Mar</span>
-            <span>Apr</span>
-            <span>May</span>
-            <span>Jun</span>
-            <span>Jul</span>
-            <span>Aug</span>
-            <span>Sep</span>
-            <span>Oct</span>
-            <span>Nov</span>
-            <span>Dec</span>
+            <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span>
         </div>
-
         <div class="heatmap-grid" id="heatmapGrid"></div>
-
-        <div class="footer-text">
-            See you there in 2027
-        </div>
-
+        <div class="footer-text">See you there in 2027</div>
     </div>
 
     <script>
-
         const trainedDatesKey = 'gym_years_trained_dates_2026';
-
         let trainedDates = new Set();
 
         // Tải dữ liệu từ LocalStorage
         const storedDates = localStorage.getItem(trainedDatesKey);
-
         if (storedDates) {
             trainedDates = new Set(JSON.parse(storedDates));
         }
 
         // Tạo lưới bản đồ nhiệt
         function generateHeatmap() {
-
             const grid = document.getElementById('heatmapGrid');
-
             grid.innerHTML = '';
-
             const totalDays = 365;
 
             for (let day = 1; day <= totalDays; day++) {
-
                 const dayCell = document.createElement('div');
-
                 dayCell.className = 'heatmap-day';
-
                 dayCell.dataset.day = day;
-
                 dayCell.onclick = toggleTraining;
-
+                
                 if (trainedDates.has(day.toString())) {
                     dayCell.classList.add('trained');
                 }
@@ -318,94 +252,45 @@
 
         // Đánh dấu / hủy đánh dấu ngày tập
         function toggleTraining() {
-
             const day = this.dataset.day;
 
             if (this.classList.contains('trained')) {
-
                 this.classList.remove('trained');
-
                 trainedDates.delete(day);
-
             } else {
-
                 this.classList.add('trained');
-
                 trainedDates.add(day);
-
             }
 
-            localStorage.setItem(
-                trainedDatesKey,
-                JSON.stringify(Array.from(trainedDates))
-            );
-
+            localStorage.setItem(trainedDatesKey, JSON.stringify(Array.from(trainedDates)));
             updateTrainedStats();
         }
 
         // Nút đánh dấu ngày hôm nay
         function markToday() {
-
             const now = new Date();
-
-            const start = new Date(
-                now.getFullYear(),
-                0,
-                0
-            );
-
+            const start = new Date(now.getFullYear(), 0, 0);
             const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
 
-            const oneDay =
-                1000 * 60 * 60 * 24;
-
-            const dayOfYear =
-                Math.floor(diff / oneDay);
-
-            const todayCell =
-                document.querySelector(
-                    .heatmap-day[data-day="${dayOfYear}"]
-                );
-
-            if (
-                todayCell &&
-                !trainedDates.has(dayOfYear.toString())
-            ) {
-
+            const todayCell = document.querySelector(`.heatmap-day[data-day="${dayOfYear}"]`);
+            if (todayCell && !trainedDates.has(dayOfYear.toString())) {
                 todayCell.classList.add('trained');
-
-                trainedDates.add(
-                    dayOfYear.toString()
-                );
-
-                localStorage.setItem(
-                    trainedDatesKey,
-                    JSON.stringify(Array.from(trainedDates))
-                );
-
+                trainedDates.add(dayOfYear.toString());
+                localStorage.setItem(trainedDatesKey, JSON.stringify(Array.from(trainedDates)));
                 updateTrainedStats();
             }
         }
 
         // Cập nhật số liệu ngày tập & chuỗi
         function updateTrainedStats() {
-
-            document.querySelector(
-                '.days-number'
-            ).textContent = trainedDates.size;
-
-            document.querySelector(
-                '.streak-count'
-            ).textContent =
-                trainedDates.size > 0
-                    ? trainedDates.size
-                    : 0;
+            document.querySelector('.days-number').textContent = trainedDates.size;
+            document.querySelector('.streak-count').textContent = trainedDates.size > 0 ? trainedDates.size : 0;
         }
 
         // Khởi tạo ứng dụng
         generateHeatmap();
-
     </script>
-
 </body>
 </html>
